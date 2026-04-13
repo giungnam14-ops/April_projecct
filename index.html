@@ -22,7 +22,18 @@
         <section class="hero animate">
             <h1>상상을 쇼츠로,<br>단 1분 만에.</h1>
             <p>복잡한 편집은 AI에게 맡기세요. 아이디어만 입력하면 고퀄리티 숏폼 영상이 당신의 눈앞에 나타납니다.</p>
+            
             <div class="cta-group">
+                <!-- 제작 옵션 추가 -->
+                <div class="options-group">
+                    <label class="option-item">
+                        <input type="radio" name="video-option" value="subtitle" checked> 자막만 사용
+                    </label>
+                    <label class="option-item">
+                        <input type="radio" name="video-option" value="voice"> 음성 나레이션 포함
+                    </label>
+                </div>
+
                 <input type="text" id="subject-input" class="input-field" placeholder="만들고 싶은 영상의 주제를 입력하세요 (예: 명언, 고양이, 역사)">
                 <button class="btn-primary" id="generate-btn">무료로 생성하기</button>
             </div>
@@ -44,10 +55,23 @@
                 </div>
                 <p id="status-text" style="font-size: 0.8rem; color: var(--text-dim); margin-top: 10px;">주제를 입력하면 AI가 분석을 시작합니다.</p>
                 
-                <!-- 가상 결과 창 (처음엔 숨김) -->
-                <div id="result-view" class="hidden" style="margin-top: 20px; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 12px; border: 1px dashed var(--accent-color);">
-                    <h4 style="color: var(--accent-color); margin-bottom: 8px;">✨ 생성된 AI 대본 초안</h4>
-                    <p id="result-script" style="font-size: 0.9rem; color: #fff;"></p>
+                <!-- 작업 공간 (생성 후 노출) -->
+                <div id="workspace" class="workspace hidden">
+                    <div class="video-container">
+                        <canvas id="video-canvas" width="360" height="640"></canvas>
+                        <div id="loading-overlay" class="hidden" style="position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center;">
+                            <p>렌더링 중...</p>
+                        </div>
+                    </div>
+                    <div class="editor-panel">
+                        <label class="editor-label">📜 대본 수정하기</label>
+                        <textarea id="edit-script-area"></textarea>
+                        <div class="action-btns">
+                            <button class="btn-secondary" id="apply-script-btn">대본 적용</button>
+                            <button class="btn-primary" id="download-btn">영상 다운로드</button>
+                        </div>
+                        <p style="font-size: 0.8rem; color: var(--text-dim); margin-top: 15px;">※ 대본을 수정하고 '대본 적용'을 누르면 영상이 업데이트됩니다.</p>
+                    </div>
                 </div>
             </div>
         </section>
@@ -75,30 +99,113 @@
 
     <script>
         const generateBtn = document.getElementById('generate-btn');
+        const applyBtn = document.getElementById('apply-script-btn');
+        const downloadBtn = document.getElementById('download-btn');
         const subjectInput = document.getElementById('subject-input');
         const displayInput = document.getElementById('display-input');
         const statusText = document.getElementById('status-text');
         const bars = document.querySelectorAll('.progress-bar');
-        const resultView = document.getElementById('result-view');
-        const resultScript = document.getElementById('result-script');
+        const workspace = document.getElementById('workspace');
+        const scriptArea = document.getElementById('edit-script-area');
+        const canvas = document.getElementById('video-canvas');
+        const ctx = canvas.getContext('2d');
+
+        let animationFrame;
+        let recording = false;
+        let mediaRecorder;
+        let recordedChunks = [];
+
+        // 캔버스 초기 배경 그리기
+        function drawBase() {
+            const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            grad.addColorStop(0, '#1e1b4b');
+            grad.addColorStop(1, '#000000');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 데코 레이어
+            ctx.strokeStyle = 'rgba(99, 102, 241, 0.1)';
+            ctx.lineWidth = 1;
+            for(let i=0; i<canvas.width; i+=20) {
+                ctx.beginPath();ctx.moveTo(i, 0);ctx.lineTo(i, canvas.height);ctx.stroke();
+            }
+        }
+
+        // 자막 렌더링 함수
+        function renderVideo(text) {
+            cancelAnimationFrame(animationFrame);
+            drawBase();
+            
+            const lines = text.split('\n').filter(l => l.trim() !== '');
+            let currentLineIndex = 0;
+            let opacity = 0;
+            let y = canvas.height / 2;
+
+            function animate() {
+                drawBase();
+                
+                const currentText = lines[currentLineIndex] || '생성 완료!';
+                ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+                ctx.font = '700 24px Outfit';
+                ctx.textAlign = 'center';
+                
+                // 텍스트 줄바꿈 처리 (간단히)
+                const words = currentText.split(' ');
+                let line = '';
+                let testY = y;
+                for(let n = 0; n < words.length; n++) {
+                    let testLine = line + words[n] + ' ';
+                    let metrics = ctx.measureText(testLine);
+                    if (metrics.width > canvas.width - 40 && n > 0) {
+                        ctx.fillText(line, canvas.width/2, testY);
+                        line = words[n] + ' ';
+                        testY += 30;
+                    } else {
+                        line = testLine;
+                    }
+                }
+                ctx.fillText(line, canvas.width/2, testY);
+
+                opacity += 0.02;
+                if (opacity >= 1) {
+                    setTimeout(() => {
+                        opacity = 0;
+                        currentLineIndex = (currentLineIndex + 1) % lines.length;
+                    }, 2000);
+                    opacity = 1.1; // 잠시 멈춤 효과
+                }
+                if (opacity > 1) {
+                    opacity -= 0.005; // 서서히 사라짐 시작 전 대기
+                    if(opacity <= 1) opacity = 0; 
+                }
+
+                animationFrame = requestAnimationFrame(animate);
+            }
+            animate();
+        }
+
+        // TTS (음성 합성)
+        function speak(text) {
+            const isVoice = document.querySelector('input[name="video-option"]:checked').value === 'voice';
+            if (!isVoice) return;
+
+            window.speechSynthesis.cancel();
+            const utter = new SpeechSynthesisUtterance(text);
+            utter.lang = 'ko-KR';
+            utter.rate = 1.0;
+            window.speechSynthesis.speak(utter);
+        }
 
         generateBtn.addEventListener('click', () => {
             const val = subjectInput.value.trim();
-            if (!val) {
-                alert('주제를 입력해 주세요!');
-                subjectInput.focus();
-                return;
-            }
+            if (!val) { alert('주제를 입력해 주세요!'); return; }
 
-            // 초기화
-            resultView.classList.add('hidden');
+            workspace.classList.add('hidden');
             displayInput.innerText = `> 입력: "${val}"`;
             statusText.innerText = 'AI가 주제를 분석 중입니다...';
             bars.forEach(bar => bar.style.width = '0%');
             generateBtn.disabled = true;
-            generateBtn.innerText = '생성 중...';
 
-            // 애니메이션 시뮬레이션
             let progress = 0;
             const interval = setInterval(() => {
                 progress += 2;
@@ -106,21 +213,56 @@
                 bars[1].style.width = Math.min(progress * 1.2, 100) + '%';
                 bars[2].style.width = Math.min(progress * 0.8, 100) + '%';
 
-                if (progress >= 30) statusText.innerText = '대본을 구성하고 있습니다...';
-                if (progress >= 60) statusText.innerText = '최적의 목소리와 배경음악을 선별 중입니다...';
-                if (progress >= 90) statusText.innerText = '최종 영상을 렌더링하고 있습니다...';
-
                 if (progress >= 100) {
                     clearInterval(interval);
-                    statusText.innerText = '✨ 생성이 완료되었습니다!';
+                    statusText.innerText = '✨ 영상 구성이 완료되었습니다!';
                     generateBtn.disabled = false;
-                    generateBtn.innerText = '무료로 생성하기';
                     
-                    // 가상 대본 노출
-                    resultView.classList.remove('hidden');
-                    resultScript.innerText = `[${val}] 주제의 쇼츠 대본이 완성되었습니다!\n\n(00:00) 앗, 여러분 그거 아시나요? ${val}에 대한 놀라운 사실!\n(00:15) 대다수가 모르는 이 비밀, 지금 바로 알려드릴게요.\n(00:45) 더 많은 정보가 궁금하다면 구독 잊지 마세요!`;
+                    workspace.classList.remove('hidden');
+                    const defaultScript = `[${val}] 주제의 쇼츠 대본입니다.\n\n와! 이거 진짜 놀랍지 않나요?\n${val}에 대해 몰랐던 사실!\n지금 바로 친구들에게 공유해보세요.\n더 알고 싶다면 구독 꾹!`;
+                    scriptArea.value = defaultScript;
+                    renderVideo(defaultScript);
+                    speak(defaultScript);
                 }
             }, 50);
+        });
+
+        applyBtn.addEventListener('click', () => {
+            const newText = scriptArea.value;
+            renderVideo(newText);
+            speak(newText);
+            alert('대본이 영상에 적용되었습니다!');
+        });
+
+        // 다운로드 로직 (MediaRecorder)
+        downloadBtn.addEventListener('click', () => {
+            recordedChunks = [];
+            const stream = canvas.captureStream(30);
+            mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9' });
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) recordedChunks.push(e.data);
+            };
+
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'ai-shorts.webm';
+                a.click();
+                alert('다운로드가 완료되었습니다!');
+            };
+
+            mediaRecorder.start();
+            downloadBtn.innerText = '녹화 중 (5초)...';
+            downloadBtn.disabled = true;
+
+            setTimeout(() => {
+                mediaRecorder.stop();
+                downloadBtn.innerText = '영상 다운로드';
+                downloadBtn.disabled = false;
+            }, 5000); // 5초간 녹화 후 다운로드
         });
     </script>
 </body>
