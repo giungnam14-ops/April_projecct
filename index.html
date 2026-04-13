@@ -152,7 +152,28 @@
                 selectedDuration = parseInt(e.target.value);
                 const totalEta = selectedDuration + 10;
                 document.getElementById('eta-text').innerText = `예상 총 소요 시간: 약 ${totalEta}초`;
-                async function fetchVideoUrl(query) {
+            });
+        });
+
+        function updateProgress(percent, status) {
+            progressBar.style.width = `${percent}%`;
+            progressPercent.innerText = `${percent}%`;
+            if (status) progressStatus.innerText = status;
+        }
+
+        async function fetchVideoData(videoUrl) {
+            updateProgress(30, "데이터 선점 중");
+            statusText.innerText = "안정적인 제작을 위해 고화질 자료를 메모리에 선제 로드 중입니다.";
+            try {
+                const response = await fetch(videoUrl);
+                const blob = await response.blob();
+                return URL.createObjectURL(blob);
+            } catch (e) {
+                return videoUrl;
+            }
+        }
+
+        async function fetchVideoUrl(query) {
             updateProgress(15, "주제 기획 및 최적화");
             statusText.innerText = "사용자의 주제를 분석하여 최상의 실사 장면을 기획하고 있습니다.";
             try {
