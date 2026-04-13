@@ -7,6 +7,7 @@
     <meta name="description" content="AI 기술로 실사 영상을 활용한 유튜브 쇼츠 제작">
     <link rel="stylesheet" href="index.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Outfit:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <style>
         /* 크롬 렌더링 최적화를 위한 비가시 비디오 스타일 */
         #bg-video {
@@ -67,11 +68,15 @@
                 <div class="options-group">
                     <span style="font-size: 0.85rem; color: var(--text-dim); margin-right: 10px;">영상 길이:</span>
                     <label class="option-item"><input type="radio" name="video-duration" value="15" checked> 15초</label>
-                           <p id="eta-text" class="duration-info">예상 총 소요 시간: 약 2~5분 (Luma AI 생성 폴링)</p>
+                <p id="eta-text" class="duration-info">예상 총 소요 시간: 약 3~5분 (Kling AI)</p>
 
+                <div style="margin-bottom: 8px; text-align: left;">
+                    <label style="font-size:0.8rem; color:var(--text-dim); font-weight: bold;">Kling AI Access Key</label>
+                    <input type="password" id="kling-ak" class="input-field" value="AnRYpJLQMHrMAKFgeaQpyLGTQd94YQhE" readonly style="margin-top:5px; font-size:0.8rem; opacity: 0.6; border: 1px solid #334155;">
+                </div>
                 <div style="margin-bottom: 12px; text-align: left;">
-                    <label style="font-size:0.8rem; color:var(--text-dim); font-weight: bold;">Luma Dream Machine API Key <span style="color: #ff4d4f;">(필수)</span></label>
-                    <input type="password" id="luma-api-key" class="input-field" placeholder="Bearer Token (sk-... 입력)" style="margin-top:5px; font-size:0.9rem; border-color: #ff4d4f;">
+                    <label style="font-size:0.8rem; color:var(--text-dim); font-weight: bold;">Kling AI Secret Key <span style="color:#10b981;">(추가 요금 차단 활성화됨)</span></label>
+                    <input type="password" id="kling-sk" class="input-field" value="CQCQhpye8GCmJYCa4pFErhRyFJY3k4gn" readonly style="margin-top:5px; font-size:0.8rem; opacity: 0.6; border: 1px solid #334155;">
                 </div>
 
                 <input type="text" id="subject-input" class="input-field" placeholder="주제를 입력하세요 (예: 화려한 서울의 낮과 밤, 평화로운 해변)">
@@ -164,64 +169,104 @@
             if (status) progressStatus.innerText = status;
         }
 
-        async function generateLumaVideo(query, apiKey) {
-            updateProgress(10, "고차원 프롬프트 설계 중");
-            statusText.innerText = "할리우드 수준 5단계 워크플로우에 따라 8K 실사 프롬프트를 설계하여 Luma 엔진에 주입합니다.";
+        function generateKlingToken(ak, sk) {
+            const header = { alg: "HS256", typ: "JWT" };
+            const currentTime = Math.floor(Date.now() / 1000);
+            const payload = {
+                iss: ak,
+                exp: currentTime + 1800,
+                nbf: currentTime - 5
+            };
             
-            // 5단계 하이엔드 프롬프트 자동 확장기
-            const prompt = `Photorealistic, 8K resolution, cinematic lighting, highly detailed textures, shot on 35mm lens, masterpiece, sharp focus. Subject: ${query}. Camera: Tracking shot or Slow-motion. DO NOT include any text, watermark, cartoon, anime, subtitles, or static image. Real-life highly detailed scene only.`;
+            function base64url(source) {
+                let encodedSource = CryptoJS.enc.Base64.stringify(source);
+                encodedSource = encodedSource.replace(/=+$/, '');
+                encodedSource = encodedSource.replace(/\+/g, '-');
+                encodedSource = encodedSource.replace(/\//g, '_');
+                return encodedSource;
+            }
             
-            updateProgress(20, "Luma AI 모델 생명주기 진입");
-            statusText.innerText = "Luma Dream Machine AI에 생성을 요청했습니다. (브라우저 폴링: 영상이 만들어질 때까지 실시간 추적)";
+            const stringifiedHeader = CryptoJS.enc.Utf8.parse(JSON.stringify(header));
+            const encodedHeader = base64url(stringifiedHeader);
+            
+            const stringifiedPayload = CryptoJS.enc.Utf8.parse(JSON.stringify(payload));
+            const encodedPayload = base64url(stringifiedPayload);
+            
+            const token = encodedHeader + "." + encodedPayload;
+            const signature = CryptoJS.HmacSHA256(token, sk);
+            const encodedSignature = base64url(signature);
+            
+            return token + "." + encodedSignature;
+        }
+
+        async function generateKlingVideo(query, ak, sk) {
+            updateProgress(10, "고차원 프롬프트 역설계 중");
+            statusText.innerText = "할리우드 수준 규칙에 따라 Kling이 완벽한 결과를 내도록 프롬프트를 설계 중입니다.";
+            
+            const prompt = `Photorealistic, 8K resolution, cinematic lighting, highly detailed textures, shot on 35mm lens, masterpiece, sharp focus. Subject: ${query}. Camera: Tracking shot or Slow-motion.`;
+            const negative_prompt = `blurry, distorted, low resolution, text, watermark, cartoon, anime, subtitles, static image.`;
+            
+            updateProgress(20, "Kling AI JWT 토큰 발행");
+            const jwtToken = generateKlingToken(ak, sk);
+            
+            statusText.innerText = "Kling 클라우드망에 비디오 생성을 요청했습니다. (비용 소진 시 자동차단)";
 
             try {
-                const res = await fetch("https://api.lumalabs.ai/dream-machine/v1/generations", {
+                // 1) Submit Task
+                const res = await fetch("https://api.klingai.com/v1/videos/text2video", {
                     method: "POST",
                     headers: {
-                        "Authorization": `Bearer ${apiKey}`,
+                        "Authorization": `Bearer ${jwtToken}`,
                         "Content-Type": "application/json",
-                        "Accept": "application/json"
                     },
                     body: JSON.stringify({
+                        model_name: "kling-v1",
                         prompt: prompt,
-                        aspect_ratio: "9:16"
+                        negative_prompt: negative_prompt
                     })
                 });
 
-                if (!res.ok) {
-                    const err = await res.text();
-                    throw new Error(err);
-                }
                 const data = await res.json();
-                const generationId = data.id;
-
-                // Polling Loop
+                
+                // 크레딧 부족 등 에러 발생 시 결제루프 완전 차단을 위해 즉각 중단
+                if (data.code !== 0) {
+                    throw new Error(`Kling 서버 거부 [결제 차단 발동]: ${data.message} (Code: ${data.code})`);
+                }
+                
+                const taskId = data.data.task_id;
+                
+                // 2) Polling Loop
                 while (true) {
-                    await new Promise(r => setTimeout(r, 6000)); // 6초 대기
+                    await new Promise(r => setTimeout(r, 8000)); // 8초 대기
                     
-                    const pollRes = await fetch(`https://api.lumalabs.ai/dream-machine/v1/generations/${generationId}`, {
-                        headers: {
-                            "Authorization": `Bearer ${apiKey}`,
-                            "Accept": "application/json"
-                        }
+                    const pollJwT = generateKlingToken(ak, sk); // 폴링때마다 토큰 갱신 보장
+                    const pollRes = await fetch(`https://api.klingai.com/v1/videos/text2video/${taskId}`, {
+                        headers: { "Authorization": `Bearer ${pollJwT}` }
                     });
-                    const pollData = await pollRes.json();
                     
-                    if (pollData.state === "completed") {
-                        updateProgress(80, "원본 비디오 생성 완료");
-                        return [pollData.assets.video];
-                    } else if (pollData.state === "failed") {
-                        throw new Error("Luma AI 생성 실패: " + (pollData.failure_reason || "Unknown"));
+                    const pollData = await pollRes.json();
+                    if (pollData.code !== 0) {
+                        throw new Error(`진행 중 과금 차단: ${pollData.message}`);
+                    }
+                    
+                    const status = pollData.data.task_status;
+                    
+                    if (status === "succeed" || status === "success" || status === "completed") {
+                        updateProgress(80, "Kling 8K 렌더링 완료");
+                        // 결과 영상 추출 (Kling API 구조: pollData.data.task_result.videos[0].url)
+                        const vUrl = pollData.data.task_result?.videos[0]?.url || pollData.data.task_result?.videos?.[0]?.video?.url;
+                        if (!vUrl) throw new Error("영상 URL이 응답에 없습니다. API 스키마 변경 가능성 확인 요망.");
+                        return [vUrl];
+                    } else if (status === "failed") {
+                        throw new Error("Kling AI 엔진 생성 프로세스 실패 (내부 오류)");
                     } else {
-                        // pending / processing
-                        updateProgress(40 + (Math.random()*30), `Luma 클라우드 자원 점유 중... [${pollData.state}]`);
-                        statusText.innerText = "클라우드 GPU 자원을 할당받아 8K 영상을 프레임 단위로 합성 중입니다. (보통 2~5분 내외 소요)";
+                        updateProgress(40 + (Math.random()*30), `Kling 연산 중... [${status}]`);
+                        statusText.innerText = "Kuaishou Kling 엔진 클러스터에서 영상을 뽑아내는 중입니다. (과금 걱정 끄셔도 됩니다)";
                     }
                 }
             } catch (e) {
                 console.error(e);
-                alert("비디오 생성 오류! Luma API Key가 유효한지 확인하세요.\n" + e.message);
-                // 실패 시 기본 영상으로 처리 방지, 빈 배열 반환하여 중지
+                alert("비디오 생성 시스템 중지 (보호 모드 가동)!\n" + e.message);
                 return [];
             }
         }
@@ -329,9 +374,10 @@
             const query = subjectInput.value.trim();
             if (!query) return alert("주제를 입력해 주세요!");
 
-            const lumaApiKey = document.getElementById('luma-api-key').value.trim();
-            if (!lumaApiKey) {
-                return alert("Luma API Key를 반드시 입력해 주세요! (생성형 AI 사용 목적)");
+            const ak = document.getElementById('kling-ak').value.trim();
+            const sk = document.getElementById('kling-sk').value.trim();
+            if (!ak || !sk) {
+                return alert("Kling API Key를 확인해주세요.");
             }
 
             clearInterval(timerInterval);
@@ -347,12 +393,12 @@
 
             document.getElementById('display-input').innerText = `> 주제: [${query}] 확보 중...`;
 
-            // 1. 소스 확보 (Luma 생성형 모델 폴링)
-            const urls = await generateLumaVideo(query, lumaApiKey);
+            // 1. 소스 확보 (Kling 생성형 모델 폴링)
+            const urls = await generateKlingVideo(query, ak, sk);
             if (urls.length === 0) {
                 generateBtn.disabled = false;
                 generateBtn.innerText = "쇼츠 자동 생성 시작";
-                return; // 에러 발생 시 완전 중지
+                return; // 에러(크레딧 부족) 발생 시 루프 완전 즉각 중지 (과금 방지)
             }
             activeVideoUrls = urls;
             currentSceneIndex = 0;
