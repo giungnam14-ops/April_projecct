@@ -209,24 +209,42 @@
             }
 
             // 가독성 오버레이 (영상이 너무 밝을 경우를 대비)
-            ctx.fillStyle = "rgba(0,0,0,0.45)";
+            ctx.fillStyle = "rgba(0,0,0,0.15)";
             ctx.fillRect(0,0,canvas.width,canvas.height);
 
-            // 자막 렌더링
-            ctx.fillStyle = "#ffffff";
-            ctx.font = "bold 28px Outfit, Inter, sans-serif";
-            ctx.textAlign = "center";
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = "rgba(0,0,0,1)"; // 가독성 강화
-            
+            // 자막 렌더링 - 유튜브 쇼츠 전문 스타일 (둥근 배경 박스)
             if (currentScript.length > 0) {
                 const timePerLine = (selectedDuration * 1000) / currentScript.length;
                 const elapsed = (Date.now() - renderStartTime);
                 const activeIndex = Math.floor(elapsed / timePerLine) % currentScript.length;
                 const text = currentScript[activeIndex] || "";
                 
-                // 단어가 길어질 경우 자동 양옆 패딩 고려
-                ctx.fillText(text, canvas.width/2, canvas.height/2 + 30);
+                ctx.font = "bold 26px 'Pretendard', 'Noto Sans KR', sans-serif";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+
+                // 박스 그리기
+                const textWidth = ctx.measureText(text).width;
+                const boxPaddingX = 25;
+                const boxPaddingY = 15;
+                const boxX = (canvas.width / 2) - (textWidth / 2) - boxPaddingX;
+                const boxY = (canvas.height / 2) + 150 - boxPaddingY;
+                const boxWidth = textWidth + (boxPaddingX * 2);
+                const boxHeight = 26 + (boxPaddingY * 2);
+
+                ctx.fillStyle = "rgba(0, 0, 0, 0.70)"; // 진한 반투명 블랙
+                if (ctx.roundRect) {
+                    ctx.beginPath();
+                    ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 15);
+                    ctx.fill();
+                } else {
+                    ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+                }
+
+                // 글씨 그리기
+                ctx.fillStyle = "#ffffff";
+                ctx.shadowBlur = 0; // 박스가 있으므로 그림자 제거
+                ctx.fillText(text, canvas.width/2, canvas.height/2 + 150 + 13);
             }
             
             if (isRendering) requestAnimationFrame(drawFrame);
@@ -264,16 +282,16 @@
             canvas.style.display = 'block';
             document.getElementById('final-result-video').style.display = 'none';
 
-            document.getElementById('display-input').innerText = `> 주제: [${query}] 준비 중...`;
+            document.getElementById('display-input').innerText = `> 주제: [${query}] 확보 중...`;
 
             // 1. 소스 확보
             const rawUrl = await fetchVideoUrl(query);
             
-            updateProgress(50, "CORS 프로토콜 브릿지 연결 중");
-            statusText.innerText = "사용자가 원하는 비주얼 로드를 위해 서버 프록시 브릿지를 통과합니다.";
+            updateProgress(50, "CORS 보안 채널 연결 중");
+            statusText.innerText = `사용자님이 원하시는 '${query}' 실사 비디오를 글로벌 프록시망을 통해 불러오고 있습니다.`;
             
-            // Cloudflare 자동 프록시 라우트를 경유하여 CORS 브라우저 차단을 예방 (속도 향상 및 차단 방어)
-            bgVideo.src = `https://april-project.pages.dev/proxy?url=${encodeURIComponent(rawUrl)}`;
+            // 글로벌 프록시망(corsproxy.io)을 상시 우회 경로로 사용. 실사 영상을 무조건 불러옵니다.
+            bgVideo.src = `https://corsproxy.io/?url=${encodeURIComponent(rawUrl)}`;
             bgVideo.load();
 
             // 3. 지능형 실행 루프 및 타임아웃
@@ -288,19 +306,19 @@
                     try {
                         let isValid = checkFrameValidity();
                         if (bgVideo.error) {
-                            statusText.innerText = "비디오 로드 오류가 발생했습니다. 대체 소스로 진행합니다.";
+                            statusText.innerText = "⚠️ 비디오 로드 오류가 발생했습니다. 대체 소스로 진행합니다.";
                         }
                         
-                        // 5초 지나면 강제 시작하거나 클릭 가이드 표시
-                        if (isValid || waitTime > 6000) {
+                        // 8초 지나면 강제 시작 (고화질 로딩 딜레이 고려)
+                        if (isValid || waitTime > 8000) {
                             clearInterval(checkInterval);
                             interactionGuide.style.display = 'none';
                             resolve();
-                        } else if (waitTime > 2500) {
+                        } else if (waitTime > 3000) {
                             interactionGuide.style.display = 'block'; // 정체가 길어지면 클릭 유도
                         }
                     } catch(e) {
-                        if (waitTime > 6000) {
+                        if (waitTime > 8000) {
                             clearInterval(checkInterval);
                             interactionGuide.style.display = 'none';
                             resolve();
@@ -310,7 +328,7 @@
             });
 
             interactionGuide.onclick = () => {
-                bgVideo.play();
+                bgVideo.play().catch(e=>{});
                 interactionGuide.style.display = 'none';
             };
 
@@ -321,12 +339,14 @@
         function beginRecording(query) {
             isRendering = true;
             renderStartTime = Date.now();
+            
+            // 주제어(query) 기반 동적 지능형 대본 생성
             currentScript = [
-                `오늘의 영감: ${query}`,
-                "AI가 설계한 완벽한 씬",
-                "끊김 없는 고화질 실사",
-                "이 쇼츠는 당신을 위해 기획되었습니다.",
-                "지금 바로 확인해 보세요!"
+                `누구나 궁금해 하던 바로 그 '${query}'`,
+                `그 이면에 숨겨진 놀라운 비밀`,
+                `'${query}'이(가) 우리의 일상을 어떻게 바꿀까요?`,
+                `지금 바로 이 특별한 영상을 통해 확인하세요.`,
+                `구독과 좋아요 누르고 더 많은 정보 받아가세요!`
             ];
 
             const stream = canvas.captureStream(30);
@@ -339,14 +359,14 @@
             recorder.ondataavailable = e => chunks.push(e.data);
             recorder.onstop = () => {
                 recordedBlob = new Blob(chunks, { type: 'video/webm' });
-                finalizeProduction();
+                finalizeProduction(query);
             };
 
             // 타이머 UI 활성화 및 동기화
             timerUI.classList.remove('hidden');
             let timeLeft = selectedDuration;
             updateProgress(80, "영상을 굽는 중");
-            statusText.innerText = "AI가 프레임을 정성껏 조립하고 있습니다. 탭을 닫지 마세요.";
+            statusText.innerText = `AI가 텍스트와 '${query}' 실사 비디오를 정성껏 조립하고 있습니다. 탭을 닫지 마세요.`;
 
             timerInterval = setInterval(() => {
                 const m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
@@ -364,30 +384,32 @@
             drawFrame();
         }
 
-        function finalizeProduction() {
+        function finalizeProduction(query) {
             isRendering = false; // 더 이상 캔버스를 그리지 않음
             timerUI.classList.add('hidden');
             updateProgress(100, "제작 완료");
-            statusText.innerText = "✨ 프리미엄 실사 쇼츠가 성공적으로 완성되었습니다!";
+            statusText.innerText = `✨ 축하합니다! '${query}' 프리미엄 실사 쇼츠가 성공적으로 완성되었습니다. 아래 플레이어에서 비디오를 시청하세요.`;
             
             generateBtn.disabled = false;
-            generateBtn.innerText = "새로운 쇼츠 만들기";
+            generateBtn.innerText = "새로운 프리미엄 쇼츠 만들기";
             workspace.classList.remove('hidden');
             document.getElementById('success-badge').style.display = 'block';
 
             const url = URL.createObjectURL(recordedBlob);
             
-            // 캔버스를 숨기고, 브라우저 기본 컨트롤러가 있는 실제 <video> 노출
+            // 캔버스를 즉시 삭제/숨기고, 브라우저 기본 컨트롤러가 있는 실제 <video> 만 노출
             canvas.style.display = 'none';
             const finalVideo = document.getElementById('final-result-video');
             finalVideo.src = url;
             finalVideo.style.display = 'block';
+            
+            // 자동 재생 시도 (소리 조절 등 네이티브 컨트롤 UI 등장)
             finalVideo.play().catch(e=>console.log("Autoplay blocked for final result"));
 
             finalDownloadBtn.onclick = () => {
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `ai-shorts-premium.webm`;
+                a.download = `${query}-ai-shorts-premium.webm`;
                 a.click();
             };
         }
