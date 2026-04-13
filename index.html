@@ -3,10 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>shorts 생성기 - AI 통합 자동 렌더링</title>
+    <title>shorts 생성기 - AI 프리미엄 렌더링</title>
     <meta name="description" content="AI 기술로 실사 영상을 활용한 유튜브 쇼츠 제작">
     <link rel="stylesheet" href="index.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Outfit:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* 크롬 렌더링 최적화를 위한 비가시 비디오 스타일 */
+        #bg-video {
+            position: fixed;
+            top: -10000px;
+            left: -10000px;
+            width: 160px;
+            height: 90px;
+            opacity: 0.01;
+            pointer-events: none;
+            z-index: -9999;
+        }
+    </style>
 </head>
 <body>
     <div class="bg-blob blob-1"></div>
@@ -32,7 +45,7 @@
                     <label class="option-item"><input type="radio" name="video-duration" value="30"> 30초</label>
                     <label class="option-item"><input type="radio" name="video-duration" value="60"> 60초</label>
                 </div>
-                <p id="eta-text" class="duration-info">예상 총 소요 시간: 약 25초 (검증 단계 포함)</p>
+                <p id="eta-text" class="duration-info">예상 총 소요 시간: 약 25초 (데이터 선점 포함)</p>
 
                 <input type="text" id="subject-input" class="input-field" placeholder="주제를 입력하세요 (예: 화려한 서울의 낮과 밤, 평화로운 해변)">
                 <button class="btn-primary" id="generate-btn">쇼츠 자동 생성 시작</button>
@@ -62,12 +75,12 @@
                     <div class="video-container" style="position: relative;">
                         <!-- 자막이 합성되는 실제 캔버스 -->
                         <canvas id="video-canvas" width="360" height="640" style="border-radius: 12px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);"></canvas>
-                        <!-- 소스 비디오 (숨김) -->
-                        <video id="bg-video" loop muted playsinline crossorigin="anonymous" style="display:none;"></video>
+                        <!-- 소스 비디오 (Off-screen 렌더링 루틴) -->
+                        <video id="bg-video" loop muted playsinline crossorigin="anonymous"></video>
                         <div id="success-badge" style="position: absolute; top: 20px; right: 20px; background: #22d3ee; color: #000; padding: 5px 12px; border-radius: 20px; font-weight: 700; font-size: 0.7rem; display:none;">COMPLETED</div>
                     </div>
                     <div class="editor-panel">
-                        <label class="editor-label">✨ 생성된 영상 미리보기</label>
+                        <label class="editor-label">✨ 생성된 프리미엄 쇼츠</label>
                         <p style="font-size: 0.85rem; color: var(--text-dim); margin-bottom: 20px;">AI가 제작한 최종 결과물입니다. 아래 버튼을 눌러 소장하세요.</p>
                         <div class="action-btns">
                             <button class="btn-primary" id="final-download-btn" style="width: 100%; height: 50px;">💾 영상 즉시 다운로드</button>
@@ -97,13 +110,14 @@
         let selectedDuration = 15;
         let recordedBlob = null;
         let isRendering = false;
+        let renderStartTime = 0;
 
         // 분량 선택 연동
         document.querySelectorAll('input[name="video-duration"]').forEach(radio => {
             radio.addEventListener('change', (e) => {
                 selectedDuration = parseInt(e.target.value);
-                const totalEta = selectedDuration + 10;
-                document.getElementById('eta-text').innerText = `예상 총 소요 시간: 약 ${totalEta}초 (검증 단계 포함)`;
+                const totalEta = selectedDuration + Math.floor(selectedDuration * 0.3) + 5;
+                document.getElementById('eta-text').innerText = `예상 총 소요 시간: 약 ${totalEta}초 (데이터 선점 포함)`;
             });
         });
 
@@ -113,19 +127,29 @@
             if (status) progressStatus.innerText = status;
         }
 
-        async function fetchVideoSource(query) {
-            updateProgress(15, "주제 기획 중");
-            statusText.innerText = "사용자의 주제를 분석하여 가장 몰입감 있는 실사 비주얼을 기획하고 있습니다.";
+        async function fetchVideoData(videoUrl) {
+            updateProgress(30, "데이터 선점 중");
+            statusText.innerText = "안정적인 제작을 위해 고화질 영상 데이터를 브라우저 메모리에 선제적으로 확보하고 있습니다.";
+            
+            try {
+                const response = await fetch(videoUrl);
+                const blob = await response.blob();
+                return URL.createObjectURL(blob);
+            } catch (e) {
+                console.warn("Pre-fetch failed, falling back to direct URL", e);
+                return videoUrl;
+            }
+        }
+
+        async function fetchVideoUrl(query) {
+            updateProgress(15, "주제 기획 및 매칭");
+            statusText.innerText = "사용자의 주제를 분석하여 가장 완벽한 실사 비주얼을 기획하고 있습니다.";
             
             try {
                 const res = await fetch(`https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&orientation=portrait&per_page=1`, {
                     headers: { 'Authorization': '5330a42d-8012-4fb5-90d3-30691775f0a4' }
                 });
                 const data = await res.json();
-                
-                updateProgress(30, "에셋 확보 중");
-                statusText.innerText = "AI 데이터베이스에서 기획된 의도에 100% 부합하는 고화질 실사 비디오를 전송받는 중입니다.";
-                
                 if (data.videos && data.videos.length > 0) {
                     const videoFile = data.videos[0].video_files.find(f => f.width >= 720) || data.videos[0].video_files[0];
                     return videoFile.link;
@@ -136,9 +160,6 @@
 
         function drawFrame() {
             if (!bgVideo.paused && !bgVideo.ended) {
-                // 검은 화면 방지를 위해 비디오 프레임이 유효한지 체크
-                if (bgVideo.readyState < 2) return; 
-
                 const vRatio = bgVideo.videoWidth / bgVideo.videoHeight;
                 const cRatio = canvas.width / canvas.height;
                 let sx, sy, sw, sh;
@@ -176,7 +197,19 @@
             if (isRendering) requestAnimationFrame(drawFrame);
         }
 
-        let renderStartTime = 0;
+        // 캔버스에 실제 영상 이미지가 들어왔는지 체크 (검은 화면 방어)
+        function checkFrameValidity() {
+            ctx.drawImage(bgVideo, 0, 0, 10, 10);
+            const data = ctx.getImageData(0, 0, 10, 10).data;
+            let isBlack = true;
+            for(let i=0; i<data.length; i+=4) {
+                if(data[i] > 10 || data[i+1] > 10 || data[i+2] > 10) {
+                    isBlack = false;
+                    break;
+                }
+            }
+            return !isBlack;
+        }
 
         async function startIntegratedProcess() {
             const query = subjectInput.value.trim();
@@ -184,45 +217,36 @@
 
             isRendering = false;
             generateBtn.disabled = true;
-            generateBtn.innerText = "통합 생성 엔진 가동...";
+            generateBtn.innerText = "크롬 최적화 엔진 가 가동 중...";
             workspace.classList.add('hidden');
             document.getElementById('display-input').innerText = `> 주제: [${query}] 분석 중...`;
 
-            // 1. 비디오 소스 확보
-            const videoUrl = await fetchVideoSource(query);
+            // 1. URL 확보
+            const rawUrl = await fetchVideoUrl(query);
             
-            // 2. 비디오 로딩 및 검은 화면 방지 설정
-            updateProgress(45, "렌더링 엔진 정렬");
-            statusText.innerText = "검은 화면 방지를 위해 비디오 프레임을 동기화하고 보안 설정을 적용하고 있습니다.";
+            // 2. Blob 선로드 (CORS & 크롬 블랙스크린 방어 핵심)
+            const localUrl = await fetchVideoData(rawUrl);
             
-            bgVideo.pause();
-            bgVideo.removeAttribute('src');
+            updateProgress(50, "렌더링 동기화 중");
+            statusText.innerText = "프레임 유효성을 검증하고 AI 렌더링 엔진과 동기화 중입니다.";
+            
+            bgVideo.src = localUrl;
             bgVideo.load();
-            bgVideo.crossOrigin = "anonymous"; // 먼저 설정
-            bgVideo.src = videoUrl;
 
-            // 비디오 재생 보장 프로미스
-            const playPromise = new Promise((resolve, reject) => {
-                const timeout = setTimeout(() => reject("Timeout"), 15000);
-                bgVideo.onplaying = () => {
-                    clearTimeout(timeout);
-                    resolve();
-                };
-                bgVideo.play().catch(e => {
-                    console.warn("Autoplay block, but can proceed");
-                    resolve();
-                });
+            // 3. 실행 보장 루프
+            await new Promise((resolve) => {
+                const checkInterval = setInterval(async () => {
+                    try {
+                        await bgVideo.play();
+                        if (checkFrameValidity()) {
+                            clearInterval(checkInterval);
+                            resolve();
+                        }
+                    } catch(e) { /* waiting for user interaction if needed */ }
+                }, 100);
             });
 
-            try {
-                await playPromise;
-                updateProgress(60, "프레임 유효성 검증");
-                
-                // 실제 프레임이 캔버스에 그려지는지 잠깐 대기
-                await new Promise(r => setTimeout(r, 1000));
-            } catch(e) { console.log("Proceeding with minimal stability"); }
-
-            // 3. 자동 렌더링(녹화) 시작
+            // 4. 자동 렌더링 시작
             beginRecording(query);
         }
 
@@ -230,17 +254,17 @@
             isRendering = true;
             renderStartTime = Date.now();
             currentScript = [
-                `오늘의 발견: ${query}`,
-                "AI가 추천하는 놀라운 비주얼",
-                "상상이 현실이 되는 고퀄리티 실사",
-                "이 영상은 오직 당신만을 위해 제작되었습니다.",
-                "지금 바로 다운로드하여 공유해 보세요!"
+                `오늘의 영감: ${query}`,
+                "AI가 설계한 완벽한 비주얼",
+                "끊김 없는 고화질 실사의 감동",
+                "이 쇼츠는 당신을 위해 기획되었습니다.",
+                "지금 바로 다운로드하여 확인하세요!"
             ];
 
             const stream = canvas.captureStream(30);
             const recorder = new MediaRecorder(stream, { 
                 mimeType: 'video/webm; codecs=vp9',
-                videoBitsPerSecond: 6000000 
+                videoBitsPerSecond: 8000000 // 8Mbps 초고화질
             });
             
             let chunks = [];
@@ -253,8 +277,8 @@
             // 타이머 UI 활성화
             timerUI.classList.remove('hidden');
             let timeLeft = selectedDuration;
-            updateProgress(85, "실시간 영상 합성 중");
-            statusText.innerText = "AI가 텍스트와 비주얼 프레임을 한 땀 한 땀 합성하여 쇼츠를 제작하고 있습니다. 창을 닫지 마세요.";
+            updateProgress(85, "실시간 프레임 합성 중");
+            statusText.innerText = "AI 렌더링 엔진이 한 프레임씩 정성껏 영상을 제작하고 있습니다. 탭을 닫지 마세요.";
 
             const timerInterval = setInterval(() => {
                 timeLeft -= 1;
@@ -269,26 +293,25 @@
             }, 1000);
 
             recorder.start();
-            drawFrame(); // 루프 시작
+            drawFrame();
         }
 
         function finalizeProduction() {
-            isRendering = true; // 미리보기 재생을 위해 루프 유지
+            isRendering = true;
             timerUI.classList.add('hidden');
-            updateProgress(100, "쇼츠 완성");
-            statusText.innerText = "✨ 축하합니다! 세상에 단 하나뿐인 프리미엄 실사 쇼츠가 완성되었습니다.";
+            updateProgress(100, "쇼츠 제작 성공");
+            statusText.innerText = "✨ 크롬 최적화 엔진을 통해 고퀄리티 쇼츠가 완성되었습니다!";
             
             generateBtn.disabled = false;
             generateBtn.innerText = "쇼츠 다시 생성하기";
             workspace.classList.remove('hidden');
             document.getElementById('success-badge').style.display = 'block';
 
-            // 자동 다운로드 (선택 사항 - 여기서는 버튼 클릭 유도)
             const url = URL.createObjectURL(recordedBlob);
             finalDownloadBtn.onclick = () => {
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `ai-shorts-final.webm`;
+                a.download = `ai-shorts-chrome-fixed.webm`;
                 a.click();
             };
         }
