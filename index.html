@@ -67,7 +67,9 @@
                 </div>
                 <div class="options-group">
                     <span style="font-size: 0.85rem; color: var(--text-dim); margin-right: 10px;">영상 길이:</span>
-                    <label class="option-item"><input type="radio" name="video-duration" value="15" checked> 15초</label>
+                    <label class="option-item"><input type="radio" name="video-duration" value="5" checked> 5초 (크레딧 절약)</label>
+                    <label class="option-item"><input type="radio" name="video-duration" value="10"> 10초</label>
+                </div>
                 <p id="eta-text" class="duration-info">예상 총 소요 시간: 약 3~5분 (Kling AI)</p>
 
                 <div style="margin-bottom: 8px; text-align: left;">
@@ -199,7 +201,7 @@
             return token + "." + encodedSignature;
         }
 
-        async function generateKlingVideo(query, ak, sk) {
+        async function generateKlingVideo(query, ak, sk, durationStr) {
             updateProgress(10, "고차원 프롬프트 역설계 중");
             statusText.innerText = "할리우드 수준 규칙에 따라 Kling이 완벽한 결과를 내도록 프롬프트를 설계 중입니다.";
             
@@ -209,7 +211,7 @@
             updateProgress(20, "Kling AI JWT 토큰 발행");
             const jwtToken = generateKlingToken(ak, sk);
             
-            statusText.innerText = "Kling 클라우드망에 비디오 생성을 요청했습니다. (비용 소진 시 자동차단)";
+            statusText.innerText = `Kling 클라우드망에 비디오 생성(${durationStr}초)을 요청했습니다. (비용 소진 시 자동차단)`;
 
             try {
                 // 1) Submit Task
@@ -222,7 +224,8 @@
                     body: JSON.stringify({
                         model_name: "kling-v1",
                         prompt: prompt,
-                        negative_prompt: negative_prompt
+                        negative_prompt: negative_prompt,
+                        duration: durationStr
                     })
                 });
 
@@ -394,7 +397,8 @@
             document.getElementById('display-input').innerText = `> 주제: [${query}] 확보 중...`;
 
             // 1. 소스 확보 (Kling 생성형 모델 폴링)
-            const urls = await generateKlingVideo(query, ak, sk);
+            const durationStr = selectedDuration.toString();
+            const urls = await generateKlingVideo(query, ak, sk, durationStr);
             if (urls.length === 0) {
                 generateBtn.disabled = false;
                 generateBtn.innerText = "쇼츠 자동 생성 시작";
