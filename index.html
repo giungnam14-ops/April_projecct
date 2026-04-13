@@ -30,13 +30,17 @@
             </div>
 
             <div class="demo-window animate" style="animation-delay: 0.2s;">
-                <div class="input-mock" id="display-input">> 대기 중...</div>
-                <div class="status-bars" style="display: flex; gap: 10px; margin-top: 20px;">
-                    <div class="bar-container" style="flex: 1; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden;">
-                        <div id="pb-1" class="progress-bar" style="width: 0%; height: 100%; background: var(--primary-color);"></div>
+                <div class="input-mock" id="display-input">> 생성 대기 중...</div>
+                <div class="status-bars" style="display: flex; flex-direction: column; gap: 8px; margin-top: 20px;">
+                    <div class="bar-container" style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
+                        <div id="pb-1" class="progress-bar" style="width: 0%; height: 100%; background: linear-gradient(to right, var(--primary-color), var(--accent-color)); transition: width 0.3s ease;"></div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--accent-color); font-weight: 600;">
+                        <span id="progress-status">대기 중</span>
+                        <span id="progress-percent">0%</span>
                     </div>
                 </div>
-                <p id="status-text" style="font-size: 0.8rem; color: var(--text-dim); margin-top: 10px;">주제를 입력하면 AI가 비주얼 검색을 시작합니다.</p>
+                <p id="status-text" style="font-size: 0.85rem; color: var(--text-dim); margin-top: 10px; line-height: 1.4;">주제를 입력하시면 AI 기획 엔진이 비주얼 설계를 시작합니다.</p>
                 
                 <div id="workspace" class="workspace hidden">
                     <div class="video-container">
@@ -44,7 +48,7 @@
                         <video id="bg-video" loop muted playsinline crossorigin="anonymous" style="display:none;"></video>
                     </div>
                     <div class="editor-panel">
-                        <label class="editor-label">📜 대본 수정 및 싱크</label>
+                        <label class="editor-label">📜 AI 대본 편집 및 렌더링</label>
                         <textarea id="edit-script-area"></textarea>
                         <div class="action-btns">
                             <button class="btn-secondary" id="apply-btn">대본 적용</button>
@@ -57,7 +61,6 @@
     </main>
 
     <script>
-        const API_KEY = 'YOUR_PEXELS_API_KEY'; // 제가 내부적으로 핸들링할 키 (사용자님은 그냥 사용하시면 됩니다)
         const generateBtn = document.getElementById('generate-btn');
         const subjectInput = document.getElementById('subject-input');
         const canvas = document.getElementById('video-canvas');
@@ -66,31 +69,41 @@
         const scriptArea = document.getElementById('edit-script-area');
         const statusText = document.getElementById('status-text');
         const progressBar = document.getElementById('pb-1');
+        const progressPercent = document.getElementById('progress-percent');
+        const progressStatus = document.getElementById('progress-status');
         const workspace = document.getElementById('workspace');
 
         let currentText = "";
         let isGenerating = false;
 
+        function updateProgress(percent, status) {
+            progressBar.style.width = `${percent}%`;
+            progressPercent.innerText = `${percent}%`;
+            if (status) progressStatus.innerText = status;
+        }
+
         async function fetchVideo(query) {
-            statusText.innerText = "주제와 어울리는 고화질 실사 영상을 찾는 중...";
+            updateProgress(20, "주제 기획 및 분석 중...");
+            statusText.innerText = "AI가 주제의 핵심 의미를 기획하고, 시각적 몰입감을 극대화할 수 있는 연출 방식을 결정하고 있습니다.";
             try {
-                // Pexels API: Portrait orientation, High quality
                 const res = await fetch(`https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&orientation=portrait&per_page=1`, {
-                    headers: { 'Authorization': '5330a42d-8012-4fb5-90d3-30691775f0a4' } // 임시 키 (추후 보안 처리)
+                    headers: { 'Authorization': '5330a42d-8012-4fb5-90d3-30691775f0a4' }
                 });
                 const data = await res.json();
+                
+                updateProgress(50, "비주얼 소스 설계 중...");
+                statusText.innerText = "데이터베이스에서 기획 의도에 가장 완벽하게 부합하는 실사 소스를 바탕으로 영상 구성을 설계하고 있습니다.";
+                
                 if (data.videos && data.videos.length > 0) {
-                    // 고화질 파일 선택
                     const videoFile = data.videos[0].video_files.find(f => f.width >= 720) || data.videos[0].video_files[0];
                     return videoFile.link;
                 }
             } catch (e) { console.error(e); }
-            return "https://joy1.videvo.net/videvo_files/video/free/2014-12/large_watermarked/Raindrops_v_preview.mp4"; // 폴백 영상
+            return "https://joy1.videvo.net/videvo_files/video/free/2014-12/large_watermarked/Raindrops_v_preview.mp4";
         }
 
         function renderLoop() {
             if (!bgVideo.paused && !bgVideo.ended) {
-                // 비디오를 전체 캔버스에 꽉 차게 그리기 (Cover 효과)
                 const vRatio = bgVideo.videoWidth / bgVideo.videoHeight;
                 const cRatio = canvas.width / canvas.height;
                 let sx, sy, sw, sh;
@@ -106,24 +119,17 @@
                     sy = (bgVideo.videoHeight - sh) / 2;
                 }
                 ctx.drawImage(bgVideo, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-                
-                // 가독성을 위한 오버레이
                 ctx.fillStyle = "rgba(0,0,0,0.3)";
                 ctx.fillRect(0,0,canvas.width,canvas.height);
-
-                // 자막 렌더링
                 ctx.fillStyle = "#fff";
                 ctx.font = "bold 24px Outfit";
                 ctx.textAlign = "center";
                 ctx.shadowBlur = 10;
                 ctx.shadowColor = "rgba(0,0,0,0.5)";
-                
                 const lines = currentText.split('\n').filter(l => l.trim() !== '');
-                // 현재 시간에 따른 자막 노출 (단순 순환)
                 const time = Date.now() / 2500;
                 const activeIndex = Math.floor(time % lines.length);
                 const activeLine = lines[activeIndex] || "";
-                
                 ctx.fillText(activeLine, canvas.width/2, canvas.height/2 + 100);
             }
             requestAnimationFrame(renderLoop);
@@ -132,30 +138,24 @@
         generateBtn.addEventListener('click', async () => {
             const query = subjectInput.value.trim();
             if (!query) return alert("주제를 입력해 주세요!");
-
-            isGenerating = true;
+            workspace.classList.add('hidden');
             generateBtn.disabled = true;
-            generateBtn.innerText = "비주얼 생성 중...";
-            progressBar.style.width = "40%";
-
+            generateBtn.innerText = "기획 엔진 가동 중...";
             const videoUrl = await fetchVideo(query);
-            progressBar.style.width = "70%";
-            
+            updateProgress(75, "최종 영상 합성 및 렌더링...");
+            statusText.innerText = "기획된 대본과 엄선된 고화질 비주얼 소스를 결합하여 하나의 완성된 쇼츠 영상을 렌더링하고 있습니다.";
             bgVideo.src = videoUrl;
             bgVideo.setAttribute('crossorigin', 'anonymous');
             bgVideo.load();
-            
             bgVideo.oncanplay = () => {
-                progressBar.style.width = "100%";
-                statusText.innerText = "✨ 실사 영상 구성 완료!";
+                updateProgress(100, "쇼츠 생성 완료");
+                statusText.innerText = "✨ AI 기반 프리미엄 실사 쇼츠 영상이 성공적으로 제작되었습니다!";
                 generateBtn.disabled = false;
                 generateBtn.innerText = "고퀄리티 영상 생성하기";
                 workspace.classList.remove('hidden');
-                
                 const defaultScript = `[${query}] 주제의 프리미엄 쇼츠입니다.\n실제로 움직이는 이 고퀄리티 화면을 보세요.\n아이디어가 현실이 되는 순간,\n지금 바로 당신만의 쇼츠를 만들어보세요!`;
                 scriptArea.value = defaultScript;
                 currentText = defaultScript;
-                
                 bgVideo.play();
                 renderLoop();
             };
@@ -184,7 +184,7 @@
             setTimeout(() => {
                 recorder.stop();
                 document.getElementById('download-btn').innerText = "영상 다운로드";
-            }, 6000); // 6초 캡처
+            }, 6000);
         });
     </script>
 </body>
