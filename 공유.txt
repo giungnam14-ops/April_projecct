@@ -1,0 +1,30 @@
+크롬 Google: https://www.google.com/
+ChatGPT: https://chatgpt.com/
+index.html 파일 안에 버튼을 누르면 로또 번호를 추천해 주는 웹사이트 코드를 만들어 주세요.
+
+Cloudflare: https://www.cloudflare.com/ko-kr/
+https://pages.cloudflare.com/
+
+Github: https://github.com/
+
+Firebase Studio: https://firebase.studio/
+
+LLM
+https://geminicli.com/
+npm install -g @google/gemini-cli
+gemini
+
+https://developers.openai.com/codex/cli/
+npm i -g @openai/codex
+codex login --device-auth
+codex
+
+https://code.claude.com/docs/en/setup
+npm install -g @anthropic-ai/claude-code
+claude
+
+
+한국 API 모음: https://github.com/dl0312/open-apis-korea
+폼: https://formspree.io/
+댓글: https://disqus.com/
+AI: https://teachablemachine.withgoogle.com/
