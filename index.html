@@ -23,19 +23,32 @@
             <h1>상상을 쇼츠로,<br>단 1분 만에.</h1>
             <p>복잡한 편집은 AI에게 맡기세요. 아이디어만 입력하면 고퀄리티 숏폼 영상이 당신의 눈앞에 나타납니다.</p>
             <div class="cta-group">
+                <input type="text" id="subject-input" class="input-field" placeholder="만들고 싶은 영상의 주제를 입력하세요 (예: 명언, 고양이, 역사)">
                 <button class="btn-primary" id="generate-btn">무료로 생성하기</button>
             </div>
 
             <div class="demo-window animate" style="animation-delay: 0.2s;">
-                <div class="input-mock">
-                    > 입력: "요즘 유행하는 고양이 밈을 주제로 유튜브 쇼츠 만들어줘"
+                <div class="input-mock" id="display-input">
+                    > 대기 중... 주제를 입력하고 버튼을 눌러주세요.
                 </div>
                 <div class="status-bars" style="display: flex; gap: 10px; margin-top: 20px;">
-                    <div style="flex: 1; height: 4px; background: var(--primary-color); border-radius: 2px;"></div>
-                    <div style="flex: 0.7; height: 4px; background: var(--secondary-color); border-radius: 2px;"></div>
-                    <div style="flex: 0.3; height: 4px; background: var(--accent-color); border-radius: 2px;"></div>
+                    <div id="bar-1" style="flex: 1; height: 4px; background: rgba(99, 102, 241, 0.2); border-radius: 2px; position: relative; overflow: hidden;">
+                        <div class="progress-bar" style="position: absolute; height: 100%; background: var(--primary-color); width: 0%;"></div>
+                    </div>
+                    <div id="bar-2" style="flex: 0.7; height: 4px; background: rgba(168, 85, 247, 0.2); border-radius: 2px; position: relative; overflow: hidden;">
+                        <div class="progress-bar" style="position: absolute; height: 100%; background: var(--secondary-color); width: 0%;"></div>
+                    </div>
+                    <div id="bar-3" style="flex: 0.3; height: 4px; background: rgba(34, 211, 238, 0.2); border-radius: 2px; position: relative; overflow: hidden;">
+                        <div class="progress-bar" style="position: absolute; height: 100%; background: var(--accent-color); width: 0%;"></div>
+                    </div>
                 </div>
-                <p style="font-size: 0.8rem; color: var(--text-dim); margin-top: 10px;">AI가 최적의 장면과 자막을 구성하고 있습니다...</p>
+                <p id="status-text" style="font-size: 0.8rem; color: var(--text-dim); margin-top: 10px;">주제를 입력하면 AI가 분석을 시작합니다.</p>
+                
+                <!-- 가상 결과 창 (처음엔 숨김) -->
+                <div id="result-view" class="hidden" style="margin-top: 20px; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 12px; border: 1px dashed var(--accent-color);">
+                    <h4 style="color: var(--accent-color); margin-bottom: 8px;">✨ 생성된 AI 대본 초안</h4>
+                    <p id="result-script" style="font-size: 0.9rem; color: #fff;"></p>
+                </div>
             </div>
         </section>
 
@@ -61,9 +74,53 @@
     </footer>
 
     <script>
-        // 간단한 인터랙션 추가
-        document.getElementById('generate-btn').addEventListener('click', () => {
-            alert('AI 쇼츠 생성 기능이 곧 준비됩니다! 조금만 기다려 주세요.');
+        const generateBtn = document.getElementById('generate-btn');
+        const subjectInput = document.getElementById('subject-input');
+        const displayInput = document.getElementById('display-input');
+        const statusText = document.getElementById('status-text');
+        const bars = document.querySelectorAll('.progress-bar');
+        const resultView = document.getElementById('result-view');
+        const resultScript = document.getElementById('result-script');
+
+        generateBtn.addEventListener('click', () => {
+            const val = subjectInput.value.trim();
+            if (!val) {
+                alert('주제를 입력해 주세요!');
+                subjectInput.focus();
+                return;
+            }
+
+            // 초기화
+            resultView.classList.add('hidden');
+            displayInput.innerText = `> 입력: "${val}"`;
+            statusText.innerText = 'AI가 주제를 분석 중입니다...';
+            bars.forEach(bar => bar.style.width = '0%');
+            generateBtn.disabled = true;
+            generateBtn.innerText = '생성 중...';
+
+            // 애니메이션 시뮬레이션
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += 2;
+                bars[0].style.width = Math.min(progress * 1.5, 100) + '%';
+                bars[1].style.width = Math.min(progress * 1.2, 100) + '%';
+                bars[2].style.width = Math.min(progress * 0.8, 100) + '%';
+
+                if (progress >= 30) statusText.innerText = '대본을 구성하고 있습니다...';
+                if (progress >= 60) statusText.innerText = '최적의 목소리와 배경음악을 선별 중입니다...';
+                if (progress >= 90) statusText.innerText = '최종 영상을 렌더링하고 있습니다...';
+
+                if (progress >= 100) {
+                    clearInterval(interval);
+                    statusText.innerText = '✨ 생성이 완료되었습니다!';
+                    generateBtn.disabled = false;
+                    generateBtn.innerText = '무료로 생성하기';
+                    
+                    // 가상 대본 노출
+                    resultView.classList.remove('hidden');
+                    resultScript.innerText = `[${val}] 주제의 쇼츠 대본이 완성되었습니다!\n\n(00:00) 앗, 여러분 그거 아시나요? ${val}에 대한 놀라운 사실!\n(00:15) 대다수가 모르는 이 비밀, 지금 바로 알려드릴게요.\n(00:45) 더 많은 정보가 궁금하다면 구독 잊지 마세요!`;
+                }
+            }, 50);
         });
     </script>
 </body>

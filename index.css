@@ -171,11 +171,43 @@ footer {
     font-size: 0.9rem;
 }
 
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
+.input-field {
+    width: 100%;
+    max-width: 500px;
+    padding: 1.2rem 1.5rem;
+    font-size: 1.1rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    color: white;
+    margin-bottom: 1.5rem;
+    outline: none;
+    transition: all 0.3s ease;
 }
 
-.animate {
-    animation: fadeIn 0.8s ease forwards;
+.input-field:focus {
+    border-color: var(--primary-color);
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 0 15px rgba(99, 102, 241, 0.2);
+}
+
+.cta-group {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Loading Animation */
+@keyframes progressFill {
+    0% { width: 0%; }
+    100% { width: 100%; }
+}
+
+.progress-active {
+    animation: progressFill 3s ease-in-out forwards;
+}
+
+.hidden {
+    display: none;
 }
