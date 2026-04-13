@@ -146,6 +146,9 @@
         let renderStartTime = 0;
         let timerInterval = null;
 
+        let activeVideoUrls = [];
+        let currentSceneIndex = 0;
+
         // 분량 선택 연동
         document.querySelectorAll('input[name="video-duration"]').forEach(radio => {
             radio.addEventListener('change', (e) => {
@@ -161,24 +164,27 @@
             if (status) progressStatus.innerText = status;
         }
 
-        async function fetchVideoUrl(query) {
-            updateProgress(15, "주제 기획 및 최적화");
-            statusText.innerText = "사용자의 주제를 분석하여 최상의 실사 장면을 기획하고 있습니다.";
+        async function fetchVideoUrls(query) {
+            updateProgress(15, "주제 자동 매칭 및 씬 기획");
+            statusText.innerText = "입력하신 주제에 맞는 여러 개의 고해상도 실사 비디오를 찾고 있습니다.";
             try {
-                const res = await fetch(`https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&orientation=portrait&per_page=1`, {
+                // locale=ko-KR과 per_page=5로 다수의 영상 추출 (한국어 검색 완벽 지원)
+                const res = await fetch(`https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&orientation=portrait&locale=ko-KR&per_page=5`, {
                     headers: { 'Authorization': '5330a42d-8012-4fb5-90d3-30691775f0a4' }
                 });
                 const data = await res.json();
                 if (data.videos && data.videos.length > 0) {
-                    const videoFile = data.videos[0].video_files.find(f => f.width >= 720) || data.videos[0].video_files[0];
-                    return videoFile.link;
+                    return data.videos.map(v => {
+                        const file = v.video_files.find(f => f.width >= 720) || v.video_files[0];
+                        return file.link;
+                    });
                 }
             } catch (e) { console.error("Search failed:", e); }
-            return "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";
+            return ["https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"];
         }
 
         function drawFrame() {
-            // 항상 기본 배경을 먼저 그립니다 (비디오가 없거나 페치 실패 시 대비)
+            // 항상 기본 배경을 먼저 그립니다 (비디오 교체 중 블랭크 방지)
             const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
             gradient.addColorStop(0, '#0f172a');
             gradient.addColorStop(1, '#334155');
@@ -204,26 +210,36 @@
                     }
                     ctx.drawImage(bgVideo, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
                 } catch(e) {
-                    console.warn("비디오 프레임 추출 중 에러 무시", e);
+                    console.warn("비디오 프레임 에러", e);
                 }
             }
 
-            // 가독성 오버레이 (영상이 너무 밝을 경우를 대비)
+            // 가독성 오버레이 (배경이 영상과 분리되도록)
             ctx.fillStyle = "rgba(0,0,0,0.15)";
             ctx.fillRect(0,0,canvas.width,canvas.height);
 
-            // 자막 렌더링 - 유튜브 쇼츠 전문 스타일 (둥근 배경 박스)
+            // 🌟 자막 & 다중 씬 컷편집 엔진
             if (currentScript.length > 0) {
                 const timePerLine = (selectedDuration * 1000) / currentScript.length;
                 const elapsed = (Date.now() - renderStartTime);
                 const activeIndex = Math.floor(elapsed / timePerLine) % currentScript.length;
                 const text = currentScript[activeIndex] || "";
                 
+                // [신규] 씬 전환(Scene Cut): 자막이 넘어갈 때 영상도 함께 바뀜
+                if (isRendering && currentSceneIndex !== activeIndex) {
+                    currentSceneIndex = activeIndex;
+                    if (activeVideoUrls.length > 1) {
+                        const nextUrl = activeVideoUrls[currentSceneIndex % activeVideoUrls.length];
+                        bgVideo.src = nextUrl; // 프록시 없이 글로벌 CDN 직결 교체
+                        bgVideo.play().catch(e => console.log("Cut transition buffer"));
+                    }
+                }
+
                 ctx.font = "bold 26px 'Pretendard', 'Noto Sans KR', sans-serif";
                 ctx.textAlign = "center";
                 ctx.textBaseline = "middle";
 
-                // 박스 그리기
+                // 반투명 블랙 둥근 박스 그리기
                 const textWidth = ctx.measureText(text).width;
                 const boxPaddingX = 25;
                 const boxPaddingY = 15;
@@ -232,7 +248,7 @@
                 const boxWidth = textWidth + (boxPaddingX * 2);
                 const boxHeight = 26 + (boxPaddingY * 2);
 
-                ctx.fillStyle = "rgba(0, 0, 0, 0.70)"; // 진한 반투명 블랙
+                ctx.fillStyle = "rgba(0, 0, 0, 0.70)"; 
                 if (ctx.roundRect) {
                     ctx.beginPath();
                     ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 15);
@@ -241,9 +257,8 @@
                     ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
                 }
 
-                // 글씨 그리기
                 ctx.fillStyle = "#ffffff";
-                ctx.shadowBlur = 0; // 박스가 있으므로 그림자 제거
+                ctx.shadowBlur = 0;
                 ctx.fillText(text, canvas.width/2, canvas.height/2 + 150 + 13);
             }
             
@@ -284,14 +299,16 @@
 
             document.getElementById('display-input').innerText = `> 주제: [${query}] 확보 중...`;
 
-            // 1. 소스 확보
-            const rawUrl = await fetchVideoUrl(query);
+            // 1. 소스 확보 (다중 씬 영상 배열 로드)
+            const urls = await fetchVideoUrls(query);
+            activeVideoUrls = urls;
+            currentSceneIndex = 0;
             
-            updateProgress(50, "CORS 보안 채널 연결 중");
-            statusText.innerText = `사용자님이 원하시는 '${query}' 실사 비디오를 글로벌 프록시망을 통해 불러오고 있습니다.`;
+            updateProgress(50, "CORS 프로토콜 브릿지 해제 및 네이티브 로드 중");
+            statusText.innerText = `사용자님이 원하시는 '${query}' 실사 비디오를 편집하기 위해 씬(Scene) 분할을 준비하고 있습니다.`;
             
-            // 글로벌 프록시망(corsproxy.io)을 상시 우회 경로로 사용. 실사 영상을 무조건 불러옵니다.
-            bgVideo.src = `https://corsproxy.io/?url=${encodeURIComponent(rawUrl)}`;
+            // 글로벌 프록시망 없이 Pexels CDN 다이렉트 고속 연결 (표준 CORS)
+            bgVideo.src = activeVideoUrls[0];
             bgVideo.load();
 
             // 3. 지능형 실행 루프 및 타임아웃
