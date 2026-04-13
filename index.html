@@ -138,24 +138,42 @@
         generateBtn.addEventListener('click', async () => {
             const query = subjectInput.value.trim();
             if (!query) return alert("주제를 입력해 주세요!");
+
             workspace.classList.add('hidden');
+            isGenerating = true;
             generateBtn.disabled = true;
             generateBtn.innerText = "기획 엔진 가동 중...";
+            
             const videoUrl = await fetchVideo(query);
-            updateProgress(75, "최종 영상 합성 및 렌더링...");
-            statusText.innerText = "기획된 대본과 엄선된 고화질 비주얼 소스를 결합하여 하나의 완성된 쇼츠 영상을 렌더링하고 있습니다.";
+            
+            // 75%에서 멈추지 않도록 점진적 증가 로직 추가
+            let currentLoadPercent = 75;
+            updateProgress(currentLoadPercent, "고화질 영상 소스 전송 중...");
+            statusText.innerText = "안정적인 렌더링을 위해 네트워크로부터 고화질 비주얼 데이터를 전송받고 있습니다. 잠시만 기다려 주세요.";
+
+            const loadingInterval = setInterval(() => {
+                if (currentLoadPercent < 98) {
+                    currentLoadPercent += 1;
+                    updateProgress(currentLoadPercent, "데이터 스트리밍 중...");
+                }
+            }, 500); // 0.5초마다 1%씩 야금야금 올림 (진행 중임을 표시)
+            
             bgVideo.src = videoUrl;
             bgVideo.setAttribute('crossorigin', 'anonymous');
             bgVideo.load();
+            
             bgVideo.oncanplay = () => {
+                clearInterval(loadingInterval);
                 updateProgress(100, "쇼츠 생성 완료");
                 statusText.innerText = "✨ AI 기반 프리미엄 실사 쇼츠 영상이 성공적으로 제작되었습니다!";
                 generateBtn.disabled = false;
                 generateBtn.innerText = "고퀄리티 영상 생성하기";
                 workspace.classList.remove('hidden');
+                
                 const defaultScript = `[${query}] 주제의 프리미엄 쇼츠입니다.\n실제로 움직이는 이 고퀄리티 화면을 보세요.\n아이디어가 현실이 되는 순간,\n지금 바로 당신만의 쇼츠를 만들어보세요!`;
                 scriptArea.value = defaultScript;
                 currentText = defaultScript;
+                
                 bgVideo.play();
                 renderLoop();
             };
