@@ -161,18 +161,6 @@
             if (status) progressStatus.innerText = status;
         }
 
-        async function fetchVideoData(videoUrl) {
-            updateProgress(30, "데이터 선점 중");
-            statusText.innerText = "안정적인 제작을 위해 고화질 자료를 메모리에 선제 로드 중입니다.";
-            try {
-                const response = await fetch(videoUrl);
-                const blob = await response.blob();
-                return URL.createObjectURL(blob);
-            } catch (e) {
-                return videoUrl;
-            }
-        }
-
         async function fetchVideoUrl(query) {
             updateProgress(15, "주제 기획 및 최적화");
             statusText.innerText = "사용자의 주제를 분석하여 최상의 실사 장면을 기획하고 있습니다.";
@@ -280,12 +268,12 @@
 
             // 1. 소스 확보
             const rawUrl = await fetchVideoUrl(query);
-            const localUrl = await fetchVideoData(rawUrl);
             
-            updateProgress(50, "렌더링 동기화 중");
-            statusText.innerText = "비주얼 싱크를 맞추는 중입니다. 잠시만 대기해 주세요.";
+            updateProgress(50, "CORS 프로토콜 브릿지 연결 중");
+            statusText.innerText = "사용자가 원하는 비주얼 로드를 위해 서버 프록시 브릿지를 통과합니다.";
             
-            bgVideo.src = localUrl;
+            // Cloudflare 자동 프록시 라우트를 경유하여 CORS 브라우저 차단을 예방 (속도 향상 및 차단 방어)
+            bgVideo.src = `https://april-project.pages.dev/proxy?url=${encodeURIComponent(rawUrl)}`;
             bgVideo.load();
 
             // 3. 지능형 실행 루프 및 타임아웃
