@@ -64,13 +64,13 @@ nav {
 
 /* Hero Section */
 .hero {
-    height: 100vh;
+    min-height: 100vh;
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
     text-align: center;
-    padding: 0 5%;
+    padding: 120px 5% 80px 5%; /* Top/Bottom padding for spacing */
 }
 
 h1 {
