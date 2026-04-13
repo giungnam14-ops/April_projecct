@@ -102,13 +102,17 @@
                     <div class="video-container" style="position: relative;">
                         <!-- 자막이 합성되는 실제 캔버스 -->
                         <canvas id="video-canvas" width="360" height="640" style="border-radius: 12px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);"></canvas>
+                        
+                        <!-- 완성된 결과물을 재생할 실제 비디오 플레이어 (렌더링 완료 후 표시됨) -->
+                        <video id="final-result-video" width="360" height="640" controls playsinline style="border-radius: 12px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); display: none; object-fit: cover;"></video>
+                        
                         <!-- 소스 비디오 -->
                         <video id="bg-video" loop muted playsinline crossorigin="anonymous"></video>
                         <div id="success-badge" style="position: absolute; top: 20px; right: 20px; background: #22d3ee; color: #000; padding: 5px 12px; border-radius: 20px; font-weight: 700; font-size: 0.7rem; display:none;">COMPLETED</div>
                     </div>
                     <div class="editor-panel">
                         <label class="editor-label">✨ 생성된 프리미엄 쇼츠</label>
-                        <p style="font-size: 0.85rem; color: var(--text-dim); margin-bottom: 20px;">AI가 제작한 최종 결과물입니다. 아래 버튼을 눌러 소장하세요.</p>
+                        <p style="font-size: 0.85rem; color: var(--text-dim); margin-bottom: 20px;">AI가 제작한 최종 결과물입니다. 영상을 재생해 보거나, 아래 버튼을 눌러 소장하세요.</p>
                         <div class="action-btns">
                             <button class="btn-primary" id="final-download-btn" style="width: 100%; height: 50px;">💾 영상 즉시 다운로드</button>
                         </div>
@@ -117,6 +121,7 @@
             </div>
         </section>
     </main>
+
 
     <script>
         const generateBtn = document.getElementById('generate-btn');
@@ -147,28 +152,7 @@
                 selectedDuration = parseInt(e.target.value);
                 const totalEta = selectedDuration + 10;
                 document.getElementById('eta-text').innerText = `예상 총 소요 시간: 약 ${totalEta}초`;
-            });
-        });
-
-        function updateProgress(percent, status) {
-            progressBar.style.width = `${percent}%`;
-            progressPercent.innerText = `${percent}%`;
-            if (status) progressStatus.innerText = status;
-        }
-
-        async function fetchVideoData(videoUrl) {
-            updateProgress(30, "데이터 선점 중");
-            statusText.innerText = "안정적인 제작을 위해 고화질 자료를 메모리에 선제 로드 중입니다.";
-            try {
-                const response = await fetch(videoUrl);
-                const blob = await response.blob();
-                return URL.createObjectURL(blob);
-            } catch (e) {
-                return videoUrl;
-            }
-        }
-
-        async function fetchVideoUrl(query) {
+                async function fetchVideoUrl(query) {
             updateProgress(15, "주제 기획 및 최적화");
             statusText.innerText = "사용자의 주제를 분석하여 최상의 실사 장면을 기획하고 있습니다.";
             try {
@@ -181,7 +165,7 @@
                     return videoFile.link;
                 }
             } catch (e) { console.error("Search failed:", e); }
-            return "https://joy1.videvo.net/videvo_files/video/free/2014-12/large_watermarked/Raindrops_v_preview.mp4";
+            return "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";
         }
 
         function drawFrame() {
@@ -246,6 +230,11 @@
             generateBtn.innerText = "제작 엔진 가동 중...";
             workspace.classList.add('hidden');
             timerUI.classList.add('hidden');
+            
+            // 캔버스를 다시 보여주고 결과 비디오를 숨김 (초기화)
+            canvas.style.display = 'block';
+            document.getElementById('final-result-video').style.display = 'none';
+
             document.getElementById('display-input').innerText = `> 주제: [${query}] 준비 중...`;
 
             // 1. 소스 확보
@@ -269,8 +258,12 @@
 
                     try {
                         let isValid = checkFrameValidity();
+                        if (bgVideo.error) {
+                            statusText.innerText = "비디오 로드 오류가 발생했습니다. 대체 소스로 진행합니다.";
+                        }
+                        
                         // 5초 지나면 강제 시작하거나 클릭 가이드 표시
-                        if (isValid || waitTime > 5000) {
+                        if (isValid || waitTime > 6000) {
                             clearInterval(checkInterval);
                             interactionGuide.style.display = 'none';
                             resolve();
@@ -278,7 +271,7 @@
                             interactionGuide.style.display = 'block'; // 정체가 길어지면 클릭 유도
                         }
                     } catch(e) {
-                        if (waitTime > 5000) {
+                        if (waitTime > 6000) {
                             clearInterval(checkInterval);
                             interactionGuide.style.display = 'none';
                             resolve();
@@ -288,7 +281,6 @@
             });
 
             interactionGuide.onclick = () => {
-
                 bgVideo.play();
                 interactionGuide.style.display = 'none';
             };
@@ -305,7 +297,7 @@
                 "AI가 설계한 완벽한 씬",
                 "끊김 없는 고화질 실사",
                 "이 쇼츠는 당신을 위해 기획되었습니다.",
-                "지금 바로 다운로드하여 확인하세요!"
+                "지금 바로 확인해 보세요!"
             ];
 
             const stream = canvas.captureStream(30);
@@ -344,17 +336,25 @@
         }
 
         function finalizeProduction() {
-            isRendering = true;
+            isRendering = false; // 더 이상 캔버스를 그리지 않음
             timerUI.classList.add('hidden');
             updateProgress(100, "제작 완료");
-            statusText.innerText = "✨ 프리미엄 실사 쇼츠가 완성되었습니다!";
+            statusText.innerText = "✨ 프리미엄 실사 쇼츠가 성공적으로 완성되었습니다!";
             
             generateBtn.disabled = false;
-            generateBtn.innerText = "쇼츠 다시 생성하기";
+            generateBtn.innerText = "새로운 쇼츠 만들기";
             workspace.classList.remove('hidden');
             document.getElementById('success-badge').style.display = 'block';
 
             const url = URL.createObjectURL(recordedBlob);
+            
+            // 캔버스를 숨기고, 브라우저 기본 컨트롤러가 있는 실제 <video> 노출
+            canvas.style.display = 'none';
+            const finalVideo = document.getElementById('final-result-video');
+            finalVideo.src = url;
+            finalVideo.style.display = 'block';
+            finalVideo.play().catch(e=>console.log("Autoplay blocked for final result"));
+
             finalDownloadBtn.onclick = () => {
                 const a = document.createElement('a');
                 a.href = url;
