@@ -70,19 +70,17 @@
                     <label class="option-item"><input type="radio" name="video-duration" value="5" checked> 5초 (크레딧 절약)</label>
                     <label class="option-item"><input type="radio" name="video-duration" value="10"> 10초</label>
                 </div>
-                <p id="eta-text" class="duration-info">예상 총 소요 시간: 약 3~5분 (Kling AI)</p>
+                <p id="eta-text" class="duration-info">예상 총 소요 시간: 약 3~5분 (AIMLAPI - Minimax)</p>
 
                 <div style="margin-bottom: 8px; text-align: left;">
-                    <label style="font-size:0.8rem; color:var(--text-dim); font-weight: bold;">Kling AI Access Key</label>
-                    <input type="password" id="kling-ak" class="input-field" value="AnRYpJLQMHrMAKFgeaQpyLGTQd94YQhE" readonly style="margin-top:5px; font-size:0.8rem; opacity: 0.6; border: 1px solid #334155;">
-                </div>
-                <div style="margin-bottom: 12px; text-align: left;">
-                    <label style="font-size:0.8rem; color:var(--text-dim); font-weight: bold;">Kling AI Secret Key <span style="color:#10b981;">(추가 요금 차단 활성화됨)</span></label>
-                    <input type="password" id="kling-sk" class="input-field" value="CQCQhpye8GCmJYCa4pFErhRyFJY3k4gn" readonly style="margin-top:5px; font-size:0.8rem; opacity: 0.6; border: 1px solid #334155;">
+                    <label style="font-size:0.8rem; color:var(--text-dim); font-weight: bold;">AIMLAPI Key (Minimax / Kling-v1.5)</label>
+                    <input type="password" id="aiml-key" class="input-field" value="aaa5952238dd49046c5e5dd356e1c61e" readonly style="margin-top:5px; font-size:0.8rem; opacity: 0.6; border: 1px solid #334155;">
                 </div>
 
                 <input type="text" id="subject-input" class="input-field" placeholder="주제를 입력하세요 (예: 화려한 서울의 낮과 밤, 평화로운 해변)">
-                <button class="btn-primary" id="generate-btn">쇼츠 자동 생성 시작</button>
+                <div style="display: flex; gap: 10px; margin-top: 15px;">
+                    <button class="btn-primary" id="generate-btn" style="flex: 1;">8K 숏츠 생성 (Minimax)</button>
+                </div>
             </div>
 
             <div class="demo-window animate" id="render-display">
@@ -171,105 +169,66 @@
             if (status) progressStatus.innerText = status;
         }
 
-        function generateKlingToken(ak, sk) {
-            const header = { alg: "HS256", typ: "JWT" };
-            const currentTime = Math.floor(Date.now() / 1000);
-            const payload = {
-                iss: ak,
-                exp: currentTime + 1800,
-                nbf: currentTime - 5
-            };
+        async function generateAimlVideo(query, aimlKey) {
+            updateProgress(10, "고차원 프롬프트 설계 중");
+            statusText.innerText = "8K Photorealistic 규격에 맞춰 Minimax가 완벽한 결과를 내도록 프롬프트를 설계 중입니다.";
             
-            function base64url(source) {
-                let encodedSource = CryptoJS.enc.Base64.stringify(source);
-                encodedSource = encodedSource.replace(/=+$/, '');
-                encodedSource = encodedSource.replace(/\+/g, '-');
-                encodedSource = encodedSource.replace(/\//g, '_');
-                return encodedSource;
-            }
+            // 8K, 9:16 최적화 프롬프트 전략
+            const prompt = `8K resolution, Photorealistic, Cinematic Lighting, highly detailed textures, masterpiece, sharp focus, real-life motion. Subject: ${query}. (No text, no subtitles, no watermark, highly cinematic and realistic)`;
             
-            const stringifiedHeader = CryptoJS.enc.Utf8.parse(JSON.stringify(header));
-            const encodedHeader = base64url(stringifiedHeader);
-            
-            const stringifiedPayload = CryptoJS.enc.Utf8.parse(JSON.stringify(payload));
-            const encodedPayload = base64url(stringifiedPayload);
-            
-            const token = encodedHeader + "." + encodedPayload;
-            const signature = CryptoJS.HmacSHA256(token, sk);
-            const encodedSignature = base64url(signature);
-            
-            return token + "." + encodedSignature;
-        }
-
-        async function generateKlingVideo(query, ak, sk, durationStr) {
-            updateProgress(10, "고차원 프롬프트 역설계 중");
-            statusText.innerText = "할리우드 수준 규칙에 따라 Kling이 완벽한 결과를 내도록 프롬프트를 설계 중입니다.";
-            
-            const prompt = `Photorealistic, 8K resolution, cinematic lighting, highly detailed textures, shot on 35mm lens, masterpiece, sharp focus. Subject: ${query}. Camera: Tracking shot or Slow-motion.`;
-            const negative_prompt = `blurry, distorted, low resolution, text, watermark, cartoon, anime, subtitles, static image.`;
-            
-            updateProgress(20, "Kling AI JWT 토큰 발행");
-            const jwtToken = generateKlingToken(ak, sk);
-            
-            statusText.innerText = `Kling 클라우드망에 비디오 생성(${durationStr}초)을 요청했습니다. (비용 소진 시 자동차단)`;
+            updateProgress(20, "AIMLAPI - Minimax 엔진 호출 진행중");
+            statusText.innerText = `AIMLAPI 클라우드망에 비디오 생성(5초/9:16 비율)을 요청했습니다.`;
 
             try {
-                // 1) Submit Task
-                const res = await fetch("https://api.klingai.com/v1/videos/text2video", {
+                // 1) Submit Task (AIMLAPI Minimax/Hailuo Endpoint)
+                const res = await fetch("https://api.aimlapi.com/v2/generate/video/minimax/generation", {
                     method: "POST",
                     headers: {
-                        "Authorization": `Bearer ${jwtToken}`,
+                        "Authorization": `Bearer ${aimlKey}`,
                         "Content-Type": "application/json",
                     },
                     body: JSON.stringify({
-                        model_name: "kling-v1",
+                        model: "video-01",
                         prompt: prompt,
-                        negative_prompt: negative_prompt,
-                        duration: durationStr
                     })
                 });
 
-                const data = await res.json();
-                
-                // 크레딧 부족 등 에러 발생 시 결제루프 완전 차단을 위해 즉각 중단
-                if (data.code !== 0) {
-                    throw new Error(`Kling 서버 거부 [결제 차단 발동]: ${data.message} (Code: ${data.code})`);
+                if (!res.ok) {
+                    const err = await res.text();
+                    throw new Error("AIMLAPI 연결 거부: " + err);
                 }
-                
-                const taskId = data.data.task_id;
+                const data = await res.json();
+                const generationId = data.generation_id || data.id;
+                if (!generationId) throw new Error("Generation ID를 가져오지 못했습니다.");
                 
                 // 2) Polling Loop
                 while (true) {
                     await new Promise(r => setTimeout(r, 8000)); // 8초 대기
                     
-                    const pollJwT = generateKlingToken(ak, sk); // 폴링때마다 토큰 갱신 보장
-                    const pollRes = await fetch(`https://api.klingai.com/v1/videos/text2video/${taskId}`, {
-                        headers: { "Authorization": `Bearer ${pollJwT}` }
+                    const pollRes = await fetch(`https://api.aimlapi.com/v2/generate/video/minimax/generation/${generationId}`, {
+                        headers: { "Authorization": `Bearer ${aimlKey}` }
                     });
                     
+                    if (!pollRes.ok) continue; // 간헐적 오류 무시
+
                     const pollData = await pollRes.json();
-                    if (pollData.code !== 0) {
-                        throw new Error(`진행 중 과금 차단: ${pollData.message}`);
-                    }
+                    const status = pollData.status || pollData.state;
                     
-                    const status = pollData.data.task_status;
-                    
-                    if (status === "succeed" || status === "success" || status === "completed") {
-                        updateProgress(80, "Kling 8K 렌더링 완료");
-                        // 결과 영상 추출 (Kling API 구조: pollData.data.task_result.videos[0].url)
-                        const vUrl = pollData.data.task_result?.videos[0]?.url || pollData.data.task_result?.videos?.[0]?.video?.url;
-                        if (!vUrl) throw new Error("영상 URL이 응답에 없습니다. API 스키마 변경 가능성 확인 요망.");
+                    if (status === "success" || status === "completed" || pollData.video_url) {
+                        updateProgress(80, "렌더링 완료");
+                        const vUrl = pollData.video_url || pollData.url || pollData.assets?.video;
+                        if (!vUrl) throw new Error("영상 URL 반환 규격이 변경되었습니다.");
                         return [vUrl];
                     } else if (status === "failed") {
-                        throw new Error("Kling AI 엔진 생성 프로세스 실패 (내부 오류)");
+                        throw new Error("AIMLAPI 비디오 생성 프로세스 내부 오류로 실패");
                     } else {
-                        updateProgress(40 + (Math.random()*30), `Kling 연산 중... [${status}]`);
-                        statusText.innerText = "Kuaishou Kling 엔진 클러스터에서 영상을 뽑아내는 중입니다. (과금 걱정 끄셔도 됩니다)";
+                        updateProgress(40 + (Math.random()*30), `Minimax 연산 중... [${status || 'processing'}]`);
+                        statusText.innerText = "최고급 실사 하이루오(Minimax) 클러스터에서 8K 영상을 추출 중입니다...";
                     }
                 }
             } catch (e) {
                 console.error(e);
-                alert("비디오 생성 시스템 중지 (보호 모드 가동)!\n" + e.message);
+                alert("비디오 생성 실패!\n" + e.message);
                 return [];
             }
         }
@@ -377,10 +336,9 @@
             const query = subjectInput.value.trim();
             if (!query) return alert("주제를 입력해 주세요!");
 
-            const ak = document.getElementById('kling-ak').value.trim();
-            const sk = document.getElementById('kling-sk').value.trim();
-            if (!ak || !sk) {
-                return alert("Kling API Key를 확인해주세요.");
+            const aimlKey = document.getElementById('aiml-key').value.trim();
+            if (!aimlKey) {
+                return alert("AIMLAPI Key를 확인해주세요.");
             }
 
             clearInterval(timerInterval);
@@ -396,13 +354,12 @@
 
             document.getElementById('display-input').innerText = `> 주제: [${query}] 확보 중...`;
 
-            // 1. 소스 확보 (Kling 생성형 모델 폴링)
-            const durationStr = selectedDuration.toString();
-            const urls = await generateKlingVideo(query, ak, sk, durationStr);
+            // 1. 소스 확보 (AIMLAPI Minimax)
+            const urls = await generateAimlVideo(query, aimlKey);
             if (urls.length === 0) {
                 generateBtn.disabled = false;
-                generateBtn.innerText = "쇼츠 자동 생성 시작";
-                return; // 에러(크레딧 부족) 발생 시 루프 완전 즉각 중지 (과금 방지)
+                generateBtn.innerText = "8K 숏츠 생성 시작";
+                return;
             }
             activeVideoUrls = urls;
             currentSceneIndex = 0;
@@ -511,7 +468,7 @@
             statusText.innerText = `✨ 축하합니다! '${query}' 프리미엄 실사 쇼츠가 성공적으로 완성되었습니다. 아래 플레이어에서 비디오를 시청하세요.`;
             
             generateBtn.disabled = false;
-            generateBtn.innerText = "새로운 프리미엄 쇼츠 만들기";
+            generateBtn.innerText = "새로운 8K 쇼츠 만들기";
             workspace.classList.remove('hidden');
             document.getElementById('success-badge').style.display = 'block';
 
